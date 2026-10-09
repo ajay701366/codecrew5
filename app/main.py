@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -32,9 +36,19 @@ app.include_router(brands.router)
 app.include_router(social_accounts.router)
 app.include_router(official_apps.router)
 
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+FRONTEND_ASSETS = FRONTEND_DIST / "assets"
+
+if FRONTEND_ASSETS.is_dir():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS), name="frontend-assets")
+
 
 @app.get("/")
 def root():
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.is_file():
+        return FileResponse(index_file)
+
     return {
         "application": "BrandGuard",
         "message": "Digital Risk Protection API",
@@ -54,3 +68,15 @@ def health_check():
         }
 
     return {"status": "healthy", "database": "connected"}
+
+
+@app.get("/{path:path}", include_in_schema=False)
+def frontend_routes(path: str):
+    if path == "api" or path.startswith("api/") or path == "health":
+        raise HTTPException(status_code=404, detail="Not found")
+
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.is_file():
+        return FileResponse(index_file)
+
+    raise HTTPException(status_code=404, detail="Frontend build not found")

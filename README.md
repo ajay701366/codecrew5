@@ -38,3 +38,12 @@ SQLite. Do not commit `.env` or production credentials.
 If the API cannot be reached, the dashboard displays clearly labeled sample
 records in demo preview mode. Demo changes are temporary and are not written
 to any database.
+
+## Deploy to Render
+
+The root `render.yaml` and `Dockerfile` deploy the frontend and FastAPI API as
+one web service. Connect this GitHub repository in Render and create a Blueprint
+from the repository. The service uses SQLite by default; for persistent
+production data, set `DATABASE_URL` in the Render service environment to your
+PostgreSQL connection string. Keep the connection string private and never add
+it to Git.

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: brandguard
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./brandguard.db
