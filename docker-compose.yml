@@ -3,17 +3,19 @@ services:
     image: postgres:16
     container_name: brandguard-postgres
     restart: unless-stopped
-
     environment:
-      POSTGRES_USER: brandguard
-      POSTGRES_PASSWORD: brandguard123
-      POSTGRES_DB: brandguard
-
+      POSTGRES_USER: ${POSTGRES_USER:-brandguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brandguard}
+      POSTGRES_DB: ${POSTGRES_DB:-brandguard}
     ports:
       - "5432:5432"
-
     volumes:
       - brandguard_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   brandguard_postgres_data:

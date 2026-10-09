@@ -4,7 +4,9 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "sqlite:///./brandguard.db"
+    DATABASE_URL: str = (
+        "postgresql+psycopg2://brandguard:brandguard@localhost:5432/brandguard"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -13,22 +15,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
-
-def _build_engine():
-    database_url = settings.DATABASE_URL or "sqlite:///./brandguard.db"
-
-    if database_url.startswith("sqlite"):
-        return create_engine(database_url, connect_args={"check_same_thread": False})
-
-    try:
-        return create_engine(database_url, pool_pre_ping=True)
-    except ModuleNotFoundError:
-        fallback_url = "sqlite:///./brandguard.db"
-        return create_engine(fallback_url, connect_args={"check_same_thread": False})
-
-
-engine = _build_engine()
+engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
 
 SessionLocal = sessionmaker(
     bind=engine,

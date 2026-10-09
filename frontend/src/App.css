@@ -152,6 +152,21 @@ h1 {
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
+.brand-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.brand-row:hover,
+.brand-row.selected {
+  background: rgba(59, 130, 246, 0.1);
+}
+
 .row-item:last-child,
 .list-stack li:last-child {
   border-bottom: none;
@@ -218,6 +233,25 @@ h1 {
   border-radius: 10px;
   padding: 0.9rem 1rem;
   font: inherit;
+}
+
+.brand-form button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.error-message {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: 10px;
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca;
+}
+
+.empty-state {
+  color: #9bb6e8;
+  font-size: 0.9rem;
 }
 
 .list-stack {

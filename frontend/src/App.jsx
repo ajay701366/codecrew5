@@ -1,31 +1,124 @@
+import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 
-const stats = [
-  { label: 'Brands tracked', value: '128' },
-  { label: 'Social accounts', value: '1,240' },
-  { label: 'Official apps', value: '96' },
-  { label: 'Alerts today', value: '18' },
-]
+const emptyBrand = { name: '', website: '', description: '' }
 
-const brands = [
-  { name: 'Nike', website: 'nike.com', risk: 'Low', status: 'Monitoring' },
-  { name: 'Spotify', website: 'spotify.com', risk: 'Medium', status: 'Needs review' },
-  { name: 'Microsoft', website: 'microsoft.com', risk: 'Low', status: 'Monitoring' },
-]
+async function request(path, options) {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...options?.headers,
+    },
+  })
 
-const socialAccounts = [
-  { platform: 'Instagram', handle: '@nike', url: 'instagram.com/nike' },
-  { platform: 'X', handle: '@Nike', url: 'x.com/Nike' },
-  { platform: 'YouTube', handle: '@Nike', url: 'youtube.com/@Nike' },
-]
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null)
+    const message = typeof detail?.detail === 'string' ? detail.detail : null
+    throw new Error(message || `Request failed (${response.status})`)
+  }
 
-const officialApps = [
-  { name: 'Nike Run Club', platform: 'Android', developer: 'Nike, Inc.' },
-  { name: 'Nike Training Club', platform: 'iOS', developer: 'Nike, Inc.' },
-  { name: 'SNKRS', platform: 'Android', developer: 'Nike, Inc.' },
-]
+  return response.status === 204 ? null : response.json()
+}
 
 function App() {
+  const [brands, setBrands] = useState([])
+  const [selectedBrandId, setSelectedBrandId] = useState(null)
+  const [socialAccounts, setSocialAccounts] = useState([])
+  const [officialApps, setOfficialApps] = useState([])
+  const [detailsForBrandId, setDetailsForBrandId] = useState(null)
+  const [form, setForm] = useState(emptyBrand)
+  const [databaseStatus, setDatabaseStatus] = useState('Checking')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const loadBrands = useCallback(async () => {
+    const data = await request('/api/brands')
+    setBrands(data)
+    setSelectedBrandId((currentId) =>
+      data.some((brand) => brand.id === currentId) ? currentId : data[0]?.id ?? null,
+    )
+  }, [])
+
+  useEffect(() => {
+    let active = true
+
+    Promise.all([request('/api/brands'), request('/health')])
+      .then(([brandData, health]) => {
+        if (!active) return
+        setBrands(brandData)
+        setSelectedBrandId(brandData[0]?.id ?? null)
+        setDatabaseStatus(health.database === 'connected' ? 'Connected' : 'Disconnected')
+      })
+      .catch((loadError) => {
+        if (!active) return
+        setError(loadError.message)
+        setDatabaseStatus('Unavailable')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedBrandId === null) {
+      return
+    }
+
+    let active = true
+    Promise.all([
+      request(`/api/brands/${selectedBrandId}/social-accounts`),
+      request(`/api/brands/${selectedBrandId}/apps`),
+    ])
+      .then(([accounts, apps]) => {
+        if (!active) return
+        setSocialAccounts(accounts)
+        setOfficialApps(apps)
+        setDetailsForBrandId(selectedBrandId)
+      })
+      .catch((loadError) => {
+        if (active) setError(loadError.message)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [selectedBrandId])
+
+  const visibleSocialAccounts = detailsForBrandId === selectedBrandId ? socialAccounts : []
+  const visibleOfficialApps = detailsForBrandId === selectedBrandId ? officialApps : []
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setSaving(true)
+
+    try {
+      const newBrand = await request('/api/brands', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...form,
+          website: form.website || null,
+          description: form.description || null,
+        }),
+      })
+      setForm(emptyBrand)
+      await loadBrands()
+      setSelectedBrandId(newBrand.id)
+    } catch (saveError) {
+      setError(saveError.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const selectedBrand = brands.find((brand) => brand.id === selectedBrandId)
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -33,27 +126,39 @@ function App() {
           <p className="eyebrow">BrandGuard</p>
           <h1>Digital Risk Protection Dashboard</h1>
         </div>
-        <button className="primary-btn">+ Add Brand</button>
+        <button
+          className="primary-btn"
+          onClick={() => document.getElementById('brand-name')?.focus()}
+        >
+          + Add Brand
+        </button>
       </header>
 
       <section className="status-row">
-        <div className="status-card online">
+        <div className={`status-card ${databaseStatus === 'Connected' ? 'online' : ''}`}>
           <span className="dot" />
           System Status
-          <strong>Online</strong>
+          <strong>{databaseStatus === 'Connected' ? 'Online' : databaseStatus}</strong>
         </div>
         <div className="status-card">
-          Last sync
-          <strong>2 mins ago</strong>
+          API
+          <strong>{loading ? 'Checking' : error ? 'Needs attention' : 'Connected'}</strong>
         </div>
         <div className="status-card">
           Database
-          <strong>Connected</strong>
+          <strong>{databaseStatus}</strong>
         </div>
       </section>
 
+      {error && <p className="error-message" role="alert">{error}</p>}
+
       <section className="stats-grid">
-        {stats.map((item) => (
+        {[
+          { label: 'Brands tracked', value: brands.length },
+          { label: 'Social accounts', value: visibleSocialAccounts.length },
+          { label: 'Official apps', value: visibleOfficialApps.length },
+          { label: 'Alerts today', value: '—' },
+        ].map((item) => (
           <div key={item.label} className="stat-card">
             <span>{item.label}</span>
             <strong>{item.value}</strong>
@@ -65,19 +170,29 @@ function App() {
         <div className="panel">
           <div className="panel-header">
             <h2>Brands</h2>
-            <a href="#">View all</a>
+            <span>{brands.length} total</span>
           </div>
           <div className="table-list">
-            {brands.map((brand) => (
-              <div key={brand.name} className="row-item">
-                <div>
-                  <strong>{brand.name}</strong>
-                  <small>{brand.website}</small>
-                </div>
-                <span className={`pill ${brand.risk.toLowerCase()}`}>{brand.risk}</span>
-                <span className="status-text">{brand.status}</span>
-              </div>
-            ))}
+            {loading ? (
+              <p className="empty-state">Loading brands…</p>
+            ) : brands.length ? (
+              brands.map((brand) => (
+                <button
+                  key={brand.id}
+                  className={`row-item brand-row ${brand.id === selectedBrandId ? 'selected' : ''}`}
+                  onClick={() => setSelectedBrandId(brand.id)}
+                  aria-pressed={brand.id === selectedBrandId}
+                >
+                  <span>
+                    <strong>{brand.name}</strong>
+                    <small>{brand.website || 'No website provided'}</small>
+                  </span>
+                  <span className="status-text">View details</span>
+                </button>
+              ))
+            ) : (
+              <p className="empty-state">No brands yet. Add one to get started.</p>
+            )}
           </div>
         </div>
 
@@ -85,20 +200,40 @@ function App() {
           <div className="panel-header">
             <h2>Add brand</h2>
           </div>
-          <form className="brand-form">
+          <form className="brand-form" onSubmit={handleSubmit}>
             <label>
               Brand name
-              <input type="text" placeholder="Enter brand name" />
+              <input
+                id="brand-name"
+                type="text"
+                placeholder="Enter brand name"
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                required
+                maxLength={255}
+              />
             </label>
             <label>
               Website
-              <input type="text" placeholder="https://example.com" />
+              <input
+                type="url"
+                placeholder="https://example.com"
+                value={form.website}
+                onChange={(event) => setForm({ ...form, website: event.target.value })}
+              />
             </label>
             <label>
               Description
-              <textarea rows="4" placeholder="Short brand summary" />
+              <textarea
+                rows="4"
+                placeholder="Short brand summary"
+                value={form.description}
+                onChange={(event) => setForm({ ...form, description: event.target.value })}
+              />
             </label>
-            <button type="submit" className="primary-btn full">Save brand</button>
+            <button type="submit" className="primary-btn full" disabled={saving}>
+              {saving ? 'Saving…' : 'Save brand'}
+            </button>
           </form>
         </div>
       </section>
@@ -107,34 +242,36 @@ function App() {
         <div className="panel">
           <div className="panel-header">
             <h2>Social Accounts</h2>
+            <span>{selectedBrand?.name || 'Select a brand'}</span>
           </div>
           <ul className="list-stack">
-            {socialAccounts.map((account) => (
-              <li key={`${account.platform}-${account.handle}`}>
+            {visibleSocialAccounts.length ? visibleSocialAccounts.map((account) => (
+              <li key={account.id}>
                 <div>
                   <strong>{account.platform}</strong>
-                  <small>{account.handle}</small>
+                  <small>{account.username}</small>
                 </div>
-                <a href={`https://${account.url}`}>{account.url}</a>
+                {account.url && <a href={account.url} target="_blank" rel="noreferrer">{account.url}</a>}
               </li>
-            ))}
+            )) : <li className="empty-state">No social accounts for this brand.</li>}
           </ul>
         </div>
 
         <div className="panel">
           <div className="panel-header">
             <h2>Official Apps</h2>
+            <span>{selectedBrand?.name || 'Select a brand'}</span>
           </div>
           <ul className="list-stack">
-            {officialApps.map((app) => (
-              <li key={app.name}>
+            {visibleOfficialApps.length ? visibleOfficialApps.map((officialApp) => (
+              <li key={officialApp.id}>
                 <div>
-                  <strong>{app.name}</strong>
-                  <small>{app.developer}</small>
+                  <strong>{officialApp.name}</strong>
+                  <small>{officialApp.developer}</small>
                 </div>
-                <span>{app.platform}</span>
+                <span>{officialApp.platform}</span>
               </li>
-            ))}
+            )) : <li className="empty-state">No official apps for this brand.</li>}
           </ul>
         </div>
       </section>
