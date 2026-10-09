@@ -49,7 +49,7 @@ function App() {
         if (!active) return
         setBrands(brandData)
         setSelectedBrandId(brandData[0]?.id ?? null)
-        setDatabaseStatus(health.database === 'connected' ? 'Connected' : 'Disconnected')
+        setDatabaseStatus(health?.database === 'connected' ? 'Connected' : 'Disconnected')
       })
       .catch((loadError) => {
         if (!active) return
