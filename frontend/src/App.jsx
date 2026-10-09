@@ -2,6 +2,20 @@ import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 
 const emptyBrand = { name: '', website: '', description: '' }
+const demoBrands = [
+  { id: 'demo-northstar', name: 'Northstar Outfitters', website: 'https://northstar.example', description: 'Sample brand for dashboard preview.' },
+  { id: 'demo-orbit', name: 'Orbit Audio', website: 'https://orbit.example', description: 'Sample brand for dashboard preview.' },
+  { id: 'demo-fieldnotes', name: 'Fieldnotes Coffee', website: 'https://fieldnotes.example', description: 'Sample brand for dashboard preview.' },
+]
+const demoSocialAccounts = [
+  { id: 'demo-social-1', brand_id: 'demo-northstar', platform: 'Instagram', username: '@northstar_demo', url: 'https://example.com/northstar-social' },
+  { id: 'demo-social-2', brand_id: 'demo-northstar', platform: 'YouTube', username: '@northstar-demo', url: 'https://example.com/northstar-video' },
+  { id: 'demo-social-3', brand_id: 'demo-orbit', platform: 'X', username: '@orbit_audio_demo', url: 'https://example.com/orbit-social' },
+]
+const demoApps = [
+  { id: 'demo-app-1', brand_id: 'demo-northstar', name: 'Northstar Trail Guide', developer: 'Northstar Outfitters (sample)', platform: 'iOS' },
+  { id: 'demo-app-2', brand_id: 'demo-orbit', name: 'Orbit Player', developer: 'Orbit Audio (sample)', platform: 'Android' },
+]
 
 async function request(path, options) {
   const response = await fetch(path, {
@@ -29,6 +43,7 @@ function App() {
   const [detailsForBrandId, setDetailsForBrandId] = useState(null)
   const [form, setForm] = useState(emptyBrand)
   const [databaseStatus, setDatabaseStatus] = useState('Checking')
+  const [isDemo, setIsDemo] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -53,8 +68,14 @@ function App() {
       })
       .catch((loadError) => {
         if (!active) return
+        setIsDemo(true)
+        setBrands(demoBrands)
+        setSelectedBrandId(demoBrands[0].id)
+        setSocialAccounts(demoSocialAccounts.filter((account) => account.brand_id === demoBrands[0].id))
+        setOfficialApps(demoApps.filter((app) => app.brand_id === demoBrands[0].id))
+        setDetailsForBrandId(demoBrands[0].id)
+        setDatabaseStatus('Sample data')
         setError(loadError.message)
-        setDatabaseStatus('Unavailable')
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -66,7 +87,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (selectedBrandId === null) {
+    if (isDemo || selectedBrandId === null) {
       return
     }
 
@@ -88,7 +109,7 @@ function App() {
     return () => {
       active = false
     }
-  }, [selectedBrandId])
+  }, [isDemo, selectedBrandId])
 
   const visibleSocialAccounts = detailsForBrandId === selectedBrandId ? socialAccounts : []
   const visibleOfficialApps = detailsForBrandId === selectedBrandId ? officialApps : []
@@ -96,6 +117,23 @@ function App() {
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
+
+    if (isDemo) {
+      const newBrand = {
+        ...form,
+        id: `demo-${Date.now()}`,
+        website: form.website || null,
+        description: form.description || null,
+      }
+      setBrands((currentBrands) => [...currentBrands, newBrand])
+      setSelectedBrandId(newBrand.id)
+      setSocialAccounts([])
+      setOfficialApps([])
+      setDetailsForBrandId(newBrand.id)
+      setForm(emptyBrand)
+      return
+    }
+
     setSaving(true)
 
     try {
@@ -138,19 +176,28 @@ function App() {
         <div className={`status-card ${databaseStatus === 'Connected' ? 'online' : ''}`}>
           <span className="dot" />
           System Status
-          <strong>{databaseStatus === 'Connected' ? 'Online' : databaseStatus}</strong>
+          <strong>{isDemo ? 'Preview' : databaseStatus === 'Connected' ? 'Online' : databaseStatus}</strong>
         </div>
         <div className="status-card">
           API
-          <strong>{loading ? 'Checking' : error ? 'Needs attention' : 'Connected'}</strong>
+          <strong>{loading ? 'Checking' : isDemo ? 'Demo mode' : error ? 'Needs attention' : 'Connected'}</strong>
         </div>
         <div className="status-card">
           Database
-          <strong>{databaseStatus}</strong>
+          <strong>{isDemo ? 'Sample data' : databaseStatus}</strong>
         </div>
       </section>
 
-      {error && <p className="error-message" role="alert">{error}</p>}
+      {isDemo ? (
+        <aside className="demo-notice" role="status">
+          <strong>Demo preview — not connected to a live database.</strong>
+          <span>
+            Showing sample records so you can explore the dashboard. Changes made here stay in this browser session only.
+            Start the backend and connect its database to load and save real records.
+          </span>
+          {error && <small>Connection detail: {error}</small>}
+        </aside>
+      ) : error && <p className="error-message" role="alert">{error}</p>}
 
       <section className="stats-grid">
         {[
@@ -232,7 +279,7 @@ function App() {
               />
             </label>
             <button type="submit" className="primary-btn full" disabled={saving}>
-              {saving ? 'Saving…' : 'Save brand'}
+              {saving ? 'Saving…' : isDemo ? 'Add sample brand' : 'Save brand'}
             </button>
           </form>
         </div>

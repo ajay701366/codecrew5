@@ -34,3 +34,7 @@ not yet include forms for creating those records.
 The backend uses `DATABASE_URL` from `.env`. PostgreSQL is the default; database
 startup or connectivity errors are reported instead of silently switching to
 SQLite. Do not commit `.env` or production credentials.
+
+If the API cannot be reached, the dashboard displays clearly labeled sample
+records in demo preview mode. Demo changes are temporary and are not written
+to any database.
